@@ -43,8 +43,10 @@ class JsonRPCError(Exception):
             return self._data
         return {'message': self.message}
 
-    def __repr__(self):
-        return "Json RPC Error ({}): {}".format(self.code, self.message)
+    def __str__(self):
+        return "Json RPC Error ({}): {}{}".format(
+            self.code, self.message,
+            " {}".format(self._data) if self._data else "")
 
 class JsonRPCInvalidParamsError(JsonRPCError):
     def __init__(self, *, request=None, data=None):

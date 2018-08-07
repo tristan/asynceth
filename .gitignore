@@ -6,3 +6,5 @@ dist/
 *.egg-info
 .eggs
 .pytest_cache
+env/
+build/

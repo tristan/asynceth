@@ -22,4 +22,4 @@ async def test_jsonrpc(parity):
         await token.transfer(test_key.address, 10 ** 18)
         assert await token.balanceOf(test_key.address) == 10 ** 18
     finally:
-        await jsonrpc_client.clse()
+        await jsonrpc_client.close()

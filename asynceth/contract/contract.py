@@ -1,15 +1,115 @@
 import asyncio
 import ethereum.abi
 import rlp
+import json
 
 from ethereum.transactions import Transaction
-from ethereum.utils import encode_hex, decode_hex, privtoaddr
-
+from ethereum.utils import encode_hex, decode_hex, privtoaddr, zpad, encode_int
+from eth_abi import encode_abi, decode_abi
 from asynceth.contract.utils import compile_solidity
+from ethereum.abi import normalize_name, method_id, event_id
+
+def process_abi_type(type_abi):
+    """Converts `tuple` (i.e struct) types into the (type1,type2,type3) form"""
+    if type_abi['type'].startswith('tuple'):
+        type_str = '(' + ','.join(process_abi_type(component) for component in type_abi['components']) + ')'
+        if type_abi['type'][-1] == ']':
+            type_str += type_abi['type'][5:]
+        return type_str
+    return type_abi['type']
 
 class ContractTranslator(ethereum.abi.ContractTranslator):
     def __init__(self, contract_interface):
-        super().__init__(contract_interface)
+        if isinstance(contract_interface, str):
+            contract_interface = json.dumps(contract_interface)
+
+        self.fallback_data = None
+        self.constructor_data = None
+        self.function_data = {}
+        self.event_data = {}
+
+        for description in contract_interface:
+            entry_type = description.get('type', 'function')
+            encode_types = []
+            signature = []
+
+            # If it's a function/constructor/event
+            if entry_type != 'fallback' and 'inputs' in description:
+                encode_types = []
+                signature = []
+                for element in description.get('inputs', []):
+                    encode_type = process_abi_type(element)
+                    encode_types.append(encode_type)
+                    signature.append((encode_type, element['name']))
+
+            if entry_type == 'function':
+                normalized_name = normalize_name(description['name'])
+                prefix = method_id(normalized_name, encode_types)
+
+                decode_types = []
+                for element in description.get('outputs', []):
+                    decode_type = process_abi_type(element)
+                    decode_types.append(decode_type)
+
+                self.function_data[normalized_name] = {
+                    'prefix': prefix,
+                    'encode_types': encode_types,
+                    'decode_types': decode_types,
+                    'is_constant': description.get('constant', False),
+                    'signature': signature,
+                    'payable': description.get('payable', False),
+                }
+
+            elif entry_type == 'event':
+                normalized_name = normalize_name(description['name'])
+
+                indexed = [
+                    element['indexed']
+                    for element in description['inputs']
+                ]
+                names = [
+                    element['name']
+                    for element in description['inputs']
+                ]
+                # event_id == topics[0]
+                self.event_data[event_id(normalized_name, encode_types)] = {
+                    'types': encode_types,
+                    'name': normalized_name,
+                    'names': names,
+                    'indexed': indexed,
+                    'anonymous': description.get('anonymous', False),
+                }
+
+            elif entry_type == 'constructor':
+                if self.constructor_data is not None:
+                    raise ValueError('Only one constructor is supported.')
+
+                self.constructor_data = {
+                    'encode_types': encode_types,
+                    'signature': signature,
+                }
+
+            elif entry_type == 'fallback':
+                if self.fallback_data is not None:
+                    raise ValueError(
+                        'Only one fallback function is supported.')
+                self.fallback_data = {'payable': description['payable']}
+
+            else:
+                raise ValueError('Unknown type {}'.format(description['type']))
+
+    def encode_function_call(self, function_name, args):
+        if function_name not in self.function_data:
+            raise ValueError('Unkown function {}'.format(function_name))
+        description = self.function_data[function_name]
+        function_selector = zpad(encode_int(description['prefix']), 4)
+        arguments = encode_abi(description['encode_types'], args)
+        return function_selector + arguments
+
+    def decode_function_result(self, function_name, data):
+        description = self.function_data[function_name]
+        arguments = decode_abi(description['decode_types'], data)
+        return arguments
 
 class ContractMethod:
 
@@ -24,8 +124,21 @@ class ContractMethod:
     def jsonrpc(self):
         return self.contract.jsonrpc
 
-    async def __call__(self, *args, startgas=None, gasprice=None, value=0, nonce=None):
-        # TODO: figure out if we can validate args
+    async def estimate_gas(self, *args, value=0, nonce=None, gasprice=None):
+        if self.is_constant:
+            return 0
+        validated_args = self.validate_arguments(*args)
+        data = self.contract.translator.encode_function_call(self.name, validated_args)
+        kwargs = {}
+        if nonce is not None:
+            kwargs['nonce'] = nonce
+        if gasprice is not None:
+            kwargs['gasprice'] = gasprice
+
+        return await self.jsonrpc.eth_estimateGas(
+            self.contract.signer_address, self.contract.address, data=data, value=value, **kwargs)
+
+    def validate_arguments(self, *args):
         validated_args = []
         for (type, name), arg in zip(self.contract.translator.function_data[self.name]['signature'], args):
             if type == 'address' and isinstance(arg, str):
@@ -34,6 +147,10 @@ class ContractMethod:
                 validated_args.append(int(arg, 16))
             else:
                 validated_args.append(arg)
+        return validated_args
+
+    async def __call__(self, *args, startgas=None, gasprice=None, value=0, nonce=None):
+        validated_args = self.validate_arguments(*args)
 
         data = self.contract.translator.encode_function_call(self.name, validated_args)
 

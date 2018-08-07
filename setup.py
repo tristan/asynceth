@@ -11,7 +11,15 @@ PY_VER = sys.version_info
 if PY_VER < (3, 6):
     raise RuntimeError("asynceth doesn't support Python version prior 3.6")
 
-install_requires = list(x.strip() for x in open('requirements.txt'))
+install_requires = [
+    'regex',
+    'ethereum',
+    'eth_abi>=2.0.0-alpha.2'
+]
+dependency_links = [
+    'git+https://github.com/tristan/eth-abi.git@c6b56597413a20bd6c023fc16a19f9553a8716db#egg=eth_abi-2.0.0-alpha.2'
+]
+
 tests_require = [
     'pytest',
     'aiohttp',
@@ -53,4 +61,5 @@ setup(
     include_package_data=True,
     tests_require=tests_require,
     setup_requires=['pytest-runner'],
+    dependency_links=dependency_links,
 )

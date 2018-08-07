@@ -1,1 +1,3 @@
 regex
+ethereum
+-e git+https://github.com/tristan/eth-abi.git@c6b56597413a20bd6c023fc16a19f9553a8716db#egg=eth_abi

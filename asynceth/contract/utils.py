@@ -5,7 +5,7 @@ from ethereum.utils import decode_hex
 
 def compile_solidity(sourcecode, optimize=False):
 
-    args = ['solc', '--combined-json', 'bin,abi']
+    args = ['solc', '--allow-paths', '.', '--combined-json', 'bin,abi']
     if optimize:
         args.append('--optimize')
 

@@ -17,7 +17,7 @@ install_requires = [
     'eth_abi>=2.0.0-alpha.2'
 ]
 dependency_links = [
-    'git+https://github.com/tristan/eth-abi.git@c6b56597413a20bd6c023fc16a19f9553a8716db#egg=eth_abi-2.0.0-alpha.2'
+    'git+https://github.com/tristan/eth-abi.git@93c521195424d764f22ccf00dcf4227fda4259a9#egg=eth_abi-2.0.0-alpha.2'
 ]
 
 tests_require = [

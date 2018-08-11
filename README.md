@@ -49,6 +49,20 @@ async def example_contract_deployment():
 asyncio.get_event_loop().run_until_complete(example_contract_deployment())
 ```
 
+## Running tests
+
+```
+python setup.py test
+```
+
+OR
+
+```
+virtualenv -p python3 env
+env/bin/pip install -r requirements.txt -r requirements-testing.txt
+env/bin/py.test
+```
+
 ## History
 
 ##### 0.0.1

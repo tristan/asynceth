@@ -9,12 +9,15 @@ from eth_abi import encode_abi, decode_abi
 from asynceth.contract.utils import compile_solidity
 from ethereum.abi import normalize_name, method_id, event_id
 
+from asynceth.contract.transaction import TransactionResponse
+
 def process_abi_type(type_abi):
     """Converts `tuple` (i.e struct) types into the (type1,type2,type3) form"""
-    if type_abi['type'].startswith('tuple'):
+    typ = type_abi['type']
+    if typ.startswith('tuple'):
         type_str = '(' + ','.join(process_abi_type(component) for component in type_abi['components']) + ')'
-        if type_abi['type'][-1] == ']':
-            type_str += type_abi['type'][5:]
+        if typ[-1] == ']':
+            type_str += typ[5:]
         return type_str
     return type_abi['type']
 
@@ -138,6 +141,10 @@ class ContractMethod:
         return await self.jsonrpc.eth_estimateGas(
             self.contract.signer_address, self.contract.address, data=data, value=value, **kwargs)
 
+    def data(self, *args):
+        validated_args = self.validate_arguments(*args)
+        return self.contract.translator.encode_function_call(self.name, validated_args)
+
     def validate_arguments(self, *args):
         validated_args = []
         for (type, name), arg in zip(self.contract.translator.function_data[self.name]['signature'], args):
@@ -196,20 +203,13 @@ class ContractMethod:
         tx_encoded = '0x' + encode_hex(rlp.encode(tx, Transaction))
 
         tx_hash = await self.jsonrpc.eth_sendRawTransaction(tx_encoded)
-        while True:
-            receipt = await self.jsonrpc.eth_getTransactionReceipt(tx_hash)
-            if receipt is None or receipt['blockNumber'] is None:
-                await asyncio.sleep(0.1)
-            else:
-                if 'status' in receipt and receipt['status'] != "0x1":
-                    raise Exception("Transaction status returned {}".format(receipt['status']))
-                return receipt
+        return TransactionResponse(self.jsonrpc, tx_hash)
 
 class Contract:
 
-    def __init__(self, jsonrpc, abi, bytecode=None, address=None):
+    def __init__(self, jsonrpc, abi, bytecode=None, address=None, optimize=True, optimize_runs=1000000000):
         if isinstance(abi, str):
-            abi, bytecode = compile_solidity(abi)
+            abi, bytecode = compile_solidity(abi, optimize=optimize, optimize_runs=optimize_runs)
         self.abi = abi
         self.bytecode = bytecode
         self.jsonrpc = jsonrpc

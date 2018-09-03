@@ -14,10 +14,7 @@ if PY_VER < (3, 6):
 install_requires = [
     'regex',
     'ethereum',
-    'eth_abi>=2.0.0-alpha.2'
-]
-dependency_links = [
-    'git+https://github.com/tristan/eth-abi.git@93c521195424d764f22ccf00dcf4227fda4259a9#egg=eth_abi-2.0.0-alpha.2'
+    'eth_abi>=2.0.0-beta.1'
 ]
 
 tests_require = [
@@ -60,6 +57,5 @@ setup(
     install_requires=install_requires,
     include_package_data=True,
     tests_require=tests_require,
-    setup_requires=['pytest-runner'],
-    dependency_links=dependency_links,
+    setup_requires=['pytest-runner']
 )

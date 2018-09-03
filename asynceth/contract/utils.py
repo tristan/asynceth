@@ -12,7 +12,6 @@ def compile_solidity(sourcecode, optimize=True, optimize_runs=1000000000):
         args.extend(['--optimize-runs', str(optimize_runs)])
 
     if os.path.exists(sourcecode):
-        print(sourcecode)
         filename = sourcecode
         sourcecode = None
     else:

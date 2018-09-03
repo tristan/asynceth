@@ -36,7 +36,8 @@ async def test_struct_with_multidimensional_array_output(jsonrpc, abiv2_contract
     rval = await jsonrpc.eth_call(to_address=abiv2_contract.address,
                                   data="0x" + method_id)
     assert decode_hex(rval) == words('20', '20', '2', '40', 'a0', '2', '1', '2', '2', '3', '4')
-    assert await abiv2_contract.testStructWithMultidimensionalArrayOutput() == ((1, 2), (3, 4))
+    rval = await abiv2_contract.testStructWithMultidimensionalArrayOutput()
+    assert rval == (((1, 2), (3, 4)),)
 
 async def test_struct_with_multidimensional_array_input(jsonrpc, abiv2_contract):
     method_id = keccak256("testStructWithMultidimensionalArrayInput((uint256[][]))")[:4].hex()
@@ -44,7 +45,7 @@ async def test_struct_with_multidimensional_array_input(jsonrpc, abiv2_contract)
     rval = await jsonrpc.eth_call(to_address=abiv2_contract.address,
                                   data="0x" + method_id + data)
     assert int(rval, 16) == 10
-    assert await abiv2_contract.testStructWithMultidimensionalArrayInput(((1, 2), (3, 4))) == 10
+    assert await abiv2_contract.testStructWithMultidimensionalArrayInput((((1, 2), (3, 4)),)) == 10
 
 async def test_struct_array_input(jsonrpc, abiv2_contract):
     method_id = keccak256("testStructArrayInput((uint256,uint256)[])")[:4].hex()
@@ -62,7 +63,8 @@ async def test_struct_multidimensional_array_output(jsonrpc, abiv2_contract):
     rval = await jsonrpc.eth_call(to_address=abiv2_contract.address,
                                   data="0x" + method_id)
     assert decode_hex(rval) == words('20', '40', 'e0', '2', '1', '2', '3', '4', '2', '5', '6', '7', '8')
-    assert await abiv2_contract.testStructMultidimensionalArrayOutput() == (((1, 2), (3, 4), (5, 6), (7, 8)))
+    rval = await abiv2_contract.testStructMultidimensionalArrayOutput()
+    assert rval == (((1, 2), (3, 4)), ((5, 6), (7, 8)))
 
 async def test_multidimensional_array_input(jsonrpc, abiv2_contract):
 

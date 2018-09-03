@@ -2,10 +2,8 @@ import sys
 import re
 import os
 
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import setup
+from setuptools import find_packages
 
 PY_VER = sys.version_info
 if PY_VER < (3, 6):
@@ -44,7 +42,7 @@ setup(
     author='Tristan King',
     author_email='mail@tristan.sh',
     url='https://github.com/tristan/asynceth',
-    packages=['asynceth'],
+    packages=find_packages(exclude=["*.test"]),
     license='MIT',
     classifiers=[
         'Development Status :: 4 - Beta',

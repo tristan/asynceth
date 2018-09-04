@@ -263,10 +263,10 @@ class JsonRPCClient:
                 raise TypeError("topics must be an array of DATA")
             for topic in topics:
                 if isinstance(topic, list):
-                    if not all(validate_hex_int(t, 32) for t in topic):
+                    if not all(validate_hex_int(t, 32) for t in topic if t is not None):
                         raise TypeError("topics must be an array of DATA")
                 else:
-                    if not validate_hex_int(topic):
+                    if topic is not None and not validate_hex_int(topic):
                         raise TypeError("topics must be an array of DATA")
             kwargs['topics'] = topics
 

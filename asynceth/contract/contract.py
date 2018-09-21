@@ -3,13 +3,12 @@ import ethereum.abi
 import rlp
 import json
 
-from ethereum.transactions import Transaction
 from ethereum.utils import encode_hex, decode_hex, privtoaddr, zpad, encode_int
 from eth_abi import encode_abi, decode_abi
 from asynceth.contract.utils import compile_solidity
 from ethereum.abi import normalize_name, method_id, event_id
 
-from asynceth.contract.transaction import TransactionResponse
+from asynceth.contract.transaction import TransactionResponse, Transaction
 
 def process_abi_type(type_abi):
     """Converts `tuple` (i.e struct) types into the (type1,type2,type3) form"""
@@ -156,7 +155,7 @@ class ContractMethod:
                 validated_args.append(arg)
         return validated_args
 
-    async def __call__(self, *args, startgas=None, gasprice=None, value=0, nonce=None):
+    async def __call__(self, *args, startgas=None, gasprice=None, value=0, nonce=None, network_id=None):
         validated_args = self.validate_arguments(*args)
 
         data = self.contract.translator.encode_function_call(self.name, validated_args)
@@ -181,25 +180,56 @@ class ContractMethod:
         if self.contract.private_key is None or self.contract.signer_address is None:
             raise Exception("Cannot call non-constant function without a signer")
 
+        bulk = self.jsonrpc.bulk()
         if nonce is None:
-            nonce = await self.jsonrpc.eth_getTransactionCount(self.contract.signer_address)
-        balance = await self.jsonrpc.eth_getBalance(self.contract.signer_address)
+            nonce = bulk.eth_getTransactionCount(self.contract.signer_address)
+        else:
+            nonce_future = asyncio.get_event_loop().create_future()
+            nonce_future.set_result(nonce)
+            nonce = nonce_future
+
+        balance = bulk.eth_getBalance(self.contract.signer_address)
 
         if gasprice is None:
-            gasprice = await self.jsonrpc.eth_gasPrice()
+            gasprice = bulk.eth_gasPrice()
+        else:
+            gasprice_future = asyncio.get_event_loop().create_future()
+            gasprice_future.set_result(gasprice)
+            gasprice = gasprice_future
 
         if startgas is None:
-            startgas = await self.jsonrpc.eth_estimateGas(
-                self.contract.signer_address, self.contract.address, data=data,
-                nonce=nonce, value=value, gasprice=gasprice)
-            if startgas == 50000000 or startgas is None:
-                raise Exception("Unable to estimate startgas")
+            startgas = bulk.eth_estimateGas(
+                self.contract.signer_address, self.contract.address,
+                data=data, value=value)
+        else:
+            startgas_future = asyncio.get_event_loop().create_future()
+            startgas_future.set_result(startgas)
+            startgas = startgas_future
+
+        if network_id is None:
+            network_id = bulk.net_version()
+        else:
+            if isinstance(network_id, int):
+                network_id = str(network_id)
+            network_id_future = asyncio.get_event_loop().create_future()
+            network_id_future.set_result(network_id)
+            network_id = network_id_future
+
+        await bulk.execute()
+        nonce = await nonce
+        balance = await balance
+        gasprice = await gasprice
+        startgas = await startgas
+        network_id = int(await network_id)
+
+        if startgas == 50000000 or startgas is None:
+            raise Exception("Unable to estimate startgas")
 
         if balance < (startgas * gasprice):
             raise Exception("Given account doesn't have enough funds")
 
         tx = Transaction(nonce, gasprice, startgas, self.contract.address, value, data, 0, 0, 0)
-        tx = tx.sign(self.contract.private_key)
+        tx = tx.sign(self.contract.private_key, network_id=network_id)
         tx_encoded = '0x' + encode_hex(rlp.encode(tx, Transaction))
 
         tx_hash = await self.jsonrpc.eth_sendRawTransaction(tx_encoded)
@@ -228,7 +258,7 @@ class Contract:
         self.signer_address = '0x' + encode_hex(privtoaddr(private_key))
         return self
 
-    async def deploy(self, *constructor_data, private_key=None, gasprice=None, startgas=None, nonce=None, value=0):
+    async def deploy(self, *constructor_data, private_key=None, gasprice=None, startgas=None, nonce=None, value=0, network_id=None):
         if private_key is None and self.private_key is None:
             raise Exception("Missing private key")
         elif private_key is None:
@@ -244,19 +274,50 @@ class Contract:
             constructor_call = self.translator.encode_constructor_arguments(constructor_data)
             bytecode += constructor_call
 
+        bulk = self.jsonrpc.bulk()
         if nonce is None:
-            nonce = await self.jsonrpc.eth_getTransactionCount(self.signer_address)
-        balance = await self.jsonrpc.eth_getBalance(self.signer_address)
+            nonce = bulk.eth_getTransactionCount(self.signer_address)
+        else:
+            nonce_future = asyncio.get_event_loop().create_future()
+            nonce_future.set_result(nonce)
+            nonce = nonce_future
+
+        balance = bulk.eth_getBalance(self.signer_address)
 
         if gasprice is None:
-            gasprice = await self.jsonrpc.eth_gasPrice()
+            gasprice = bulk.eth_gasPrice()
+        else:
+            gasprice_future = asyncio.get_event_loop().create_future()
+            gasprice_future.set_result(gasprice)
+            gasprice = gasprice_future
 
         if startgas is None:
-            startgas = await self.jsonrpc.eth_estimateGas(
-                self.signer_address, '', data=bytecode,
-                nonce=nonce, value=value, gasprice=gasprice)
-            if startgas == 50000000 or startgas is None:
-                raise Exception("Unable to estimate startgas")
+            startgas = bulk.eth_estimateGas(
+                self.signer_address, '',
+                data=bytecode, value=value)
+        else:
+            startgas_future = asyncio.get_event_loop().create_future()
+            startgas_future.set_result(startgas)
+            startgas = startgas_future
+
+        if network_id is None:
+            network_id = bulk.net_version()
+        else:
+            if isinstance(network_id, int):
+                network_id = str(network_id)
+            network_id_future = asyncio.get_event_loop().create_future()
+            network_id_future.set_result(network_id)
+            network_id = network_id_future
+
+        await bulk.execute()
+        nonce = await nonce
+        balance = await balance
+        gasprice = await gasprice
+        startgas = await startgas
+        network_id = int(await network_id)
+
+        if startgas == 50000000 or startgas is None:
+            raise Exception("Unable to estimate startgas")
 
         if balance < (startgas * gasprice):
             raise Exception("Given account doesn't have enough funds")

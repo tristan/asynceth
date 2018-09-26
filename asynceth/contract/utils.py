@@ -3,7 +3,7 @@ import json
 import subprocess
 from ethereum.utils import decode_hex
 
-def compile_solidity(sourcecode, optimize=True, optimize_runs=1000000000):
+def compile_solidity(sourcecode, name=None, cwd=None, optimize=True, optimize_runs=1000000000):
 
     args = ['solc', '--allow-paths', '.', '--combined-json', 'bin,abi']
     if optimize:
@@ -11,7 +11,11 @@ def compile_solidity(sourcecode, optimize=True, optimize_runs=1000000000):
     if optimize_runs:
         args.extend(['--optimize-runs', str(optimize_runs)])
 
-    if os.path.exists(sourcecode):
+    if cwd is None:
+        cwd = "."
+    cwd = os.path.abspath(cwd)
+
+    if os.path.exists(os.path.join(cwd, sourcecode)):
         filename = sourcecode
         sourcecode = None
     else:
@@ -19,7 +23,7 @@ def compile_solidity(sourcecode, optimize=True, optimize_runs=1000000000):
 
     args.append(filename)
 
-    process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(args, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, stderrdata = process.communicate(input=sourcecode)
     try:
         output = json.loads(output)
@@ -34,6 +38,8 @@ def compile_solidity(sourcecode, optimize=True, optimize_runs=1000000000):
     try:
         for key in output['contracts']:
             if key.startswith(filename + ':'):
+                if name is not None and not key.endswith(':' + name):
+                    continue
                 contract = output['contracts'][key]
                 break
     except KeyError:

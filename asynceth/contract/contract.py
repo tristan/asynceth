@@ -155,30 +155,47 @@ class ContractMethod:
                 validated_args.append(arg)
         return validated_args
 
-    async def __call__(self, *args, startgas=None, gasprice=None, value=0, nonce=None, network_id=None):
+    def __call__(self, *args, startgas=None, gasprice=None, value=0, nonce=None, network_id=None, bulk=None):
         validated_args = self.validate_arguments(*args)
 
         data = self.contract.translator.encode_function_call(self.name, validated_args)
 
         if self.is_constant:
-            result = await self.jsonrpc.eth_call(
+
+            def result_processor(result):
+                result = decode_hex(result)
+                if result:
+                    decoded = self.contract.translator.decode_function_result(self.name, result)
+                    # decode string results
+                    decoded = [val.decode('utf-8') if isinstance(val, bytes) and type == 'string' else val
+                               for val, type in zip(decoded, self.contract.translator.function_data[self.name]['decode_types'])]
+                    # return the single value if there is only a single return value
+                    if len(decoded) == 1:
+                        return decoded[0]
+                    return decoded
+                return None
+
+            if bulk is not None:
+                return bulk.eth_call(
+                    from_address=self.contract.signer_address or '',
+                    to_address=self.contract.address,
+                    data=data, result_processor=result_processor)
+            # async
+            return self.jsonrpc.eth_call(
                 from_address=self.contract.signer_address or '',
                 to_address=self.contract.address,
-                data=data)
-            result = decode_hex(result)
-            if result:
-                decoded = self.contract.translator.decode_function_result(self.name, result)
-                # decode string results
-                decoded = [val.decode('utf-8') if isinstance(val, bytes) and type == 'string' else val
-                           for val, type in zip(decoded, self.contract.translator.function_data[self.name]['decode_types'])]
-                # return the single value if there is only a single return value
-                if len(decoded) == 1:
-                    return decoded[0]
-                return decoded
-            return None
+                data=data, result_processor=result_processor)
+
+        if bulk is not None:
+            raise Exception("Cannot call non-constant function within a bulk call")
 
         if self.contract.private_key is None or self.contract.signer_address is None:
             raise Exception("Cannot call non-constant function without a signer")
+
+        # async
+        return self._async__call__(data=data, startgas=startgas, gasprice=gasprice, value=value, nonce=nonce, network_id=network_id)
+
+    async def _async__call__(self, *, data, startgas=None, gasprice=None, value=0, nonce=None, network_id=None):
 
         bulk = self.jsonrpc.bulk()
         if nonce is None:

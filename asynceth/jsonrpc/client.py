@@ -275,7 +275,7 @@ class JsonRPCClient:
         else:
             return self._fetch("eth_getLogs", [kwargs])
 
-    def eth_call(self, *, to_address, from_address=None, gas=None, gasprice=None, value=None, data=None, block="latest"):
+    def eth_call(self, *, to_address, from_address=None, gas=None, gasprice=None, value=None, data=None, block="latest", result_processor=None):
 
         to_address = validate_hex_int(to_address)
         block = validate_block_param(block)
@@ -292,7 +292,7 @@ class JsonRPCClient:
         if data:
             callobj['data'] = validate_hex_int(data)
 
-        return self._fetch("eth_call", [callobj, block])
+        return self._fetch("eth_call", [callobj, block], result_processor)
 
     def eth_gasPrice(self):
 

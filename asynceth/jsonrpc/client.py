@@ -24,6 +24,15 @@ except:
 
 JSON_RPC_VERSION = "2.0"
 
+def is_retryable_error(message):
+    """common errors due to trying to access a block
+    that hasn't been synced to the current node"""
+    if message == "Unknown block number":
+        return True
+    if message == "One of the blocks specified in filter (fromBlock, toBlock or blockHash) cannot be found":
+        return True
+    return False
+
 class JsonRPCClient:
 
     def __init__(self, url, *, should_retry=True, log=None,
@@ -117,12 +126,14 @@ class JsonRPCClient:
                 # handle potential issues with the block number requested being too high because
                 # the nodes haven't all synced to the current block yet
                 # TODO: this is only supported by parity: geth returns "<nil>" when the block number if too high
-                if 'message' in rval['error'] and rval['error']['message'] == "Unknown block number":
+                if 'message' in rval['error'] and is_retryable_error(rval['error']['message']):
                     retries += 1
                     if self.should_retry and time.time() - req_start < request_timeout:
                         await asyncio.sleep(random.random())
                         continue
-                raise JsonRPCError(rval['id'], rval['error']['code'], rval['error']['message'], rval['error']['data'] if 'data' in rval['error'] else None)
+                raise JsonRPCError(rval['id'], rval['error']['code'],
+                                   rval['error']['message'],
+                                   rval['error']['data'] if 'data' in rval['error'] else None)
 
             if result_processor:
                 return result_processor(rval['result'])

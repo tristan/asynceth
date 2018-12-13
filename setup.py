@@ -19,7 +19,7 @@ tests_require = [
     'pytest',
     'aiohttp',
     'pytest-aiohttp',
-    'testing.parity'
+    'testing.parity>=1.0.2'
 ]
 
 def read_version():

@@ -38,6 +38,7 @@ setup(
     name='asynceth',
     version=read_version(),
     description='Asyncio Ethereum Utilities',
+    long_description_content_type="text/markdown",
     long_description=open('README.md').read(),
     author='Tristan King',
     author_email='mail@tristan.sh',

@@ -254,9 +254,9 @@ class ContractMethod:
 
 class Contract:
 
-    def __init__(self, jsonrpc, abi, name=None, cwd=None, bytecode=None, address=None, optimize=True, optimize_runs=1000000000):
+    def __init__(self, jsonrpc, abi, name=None, cwd=None, bytecode=None, address=None, solc='solc', optimize=True, optimize_runs=None):
         if isinstance(abi, str):
-            abi, bytecode = compile_solidity(abi, cwd=cwd, name=name, optimize=optimize, optimize_runs=optimize_runs)
+            abi, bytecode = compile_solidity(abi, cwd=cwd, name=name, solc=solc, optimize=optimize, optimize_runs=optimize_runs)
         self.abi = abi
         self.bytecode = bytecode
         self.jsonrpc = jsonrpc

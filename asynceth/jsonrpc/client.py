@@ -116,7 +116,7 @@ class JsonRPCClient:
                 await asyncio.sleep(random.random())
                 continue
 
-            rval = await resp.json()
+            rval = await resp.json(content_type=None)
 
             # verify the id we got back is the same as what we passed
             if data['id'] != rval['id']:

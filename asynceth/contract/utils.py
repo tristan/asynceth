@@ -3,9 +3,12 @@ import json
 import subprocess
 from ethereum.utils import decode_hex
 
-def compile_solidity(sourcecode, name=None, cwd=None, optimize=True, optimize_runs=1000000000):
+def compile_solidity(sourcecode, name=None, cwd=None, solc='solc', optimize=True, optimize_runs=None):
 
-    args = ['solc', '--allow-paths', '.', '--combined-json', 'bin,abi']
+    args = [solc, '--allow-paths', '.', '--combined-json', 'bin,abi']
+
+    if optimize_runs is None:
+        optimize_runs = 1000000000
     if optimize:
         args.append('--optimize')
     if optimize_runs:

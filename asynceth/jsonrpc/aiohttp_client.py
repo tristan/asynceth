@@ -34,7 +34,8 @@ class HTTPClient:
         connector = aiohttp.TCPConnector(
             limit=max_clients)
         self._verify_ssl = verify_ssl
-        self._session = aiohttp.ClientSession(connector=connector, conn_timeout=connect_timeout)
+        timeout = aiohttp.ClientTimeout(connect=connect_timeout)
+        self._session = aiohttp.ClientSession(connector=connector, timeout=timeout)
 
     async def fetch(self, url, *, method="GET", headers=None, body=None, request_timeout=None):
         fn = getattr(self._session, method.lower())

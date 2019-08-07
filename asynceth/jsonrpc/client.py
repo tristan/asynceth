@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import random
 import logging
 import time
@@ -104,15 +105,21 @@ class JsonRPCClient:
                     body=data,
                     request_timeout=request_timeout
                 )
+            except concurrent.futures.CancelledError:
+                raise
             except Exception as e:
-                self.log.error("Error in JsonRPCClient._fetch ({}, {}) \"{}\" attempt {}".format(
-                    data['method'], data['params'], str(e), retries))
-                retries += 1
                 if self.should_retry and isinstance(e, HTTPError) and (e.status == 599 or e.status == 502):
                     # always retry after 599
                     pass
                 elif not self.should_retry or time.time() - req_start >= request_timeout:
                     raise
+                if retries == 0:
+                    logger = self.log.exception
+                else:
+                    logger = self.log.error
+                logger("Error in JsonRPCClient._fetch ({}, {}) \"{}\" attempt {}".format(
+                    data['method'], data['params'], str(e), retries))
+                retries += 1
                 await asyncio.sleep(random.random())
                 continue
 
@@ -381,15 +388,21 @@ class JsonRPCClient:
                     body=data,
                     request_timeout=60.0 # higher request timeout than other operations
                 )
+            except concurrent.futures.CancelledError:
+                raise
             except Exception as e:
-                self.log.error("Error in JsonRPCClient.execute: retry {}".format(retries))
-                retries += 1
                 if self.should_retry and isinstance(e, HTTPError) and (e.status == 599 or e.status == 502):
                     # always retry after 599
                     pass
                 elif not self.should_retry or time.time() - req_start >= self._request_timeout:
                     # give up after the request timeout
                     raise
+                if retries == 0:
+                    logger = self.log.exception
+                else:
+                    logger = self.log.error
+                logger("Error in JsonRPCClient.execute: retry {}".format(retries))
+                retries += 1
                 await asyncio.sleep(random.random())
                 continue
             break

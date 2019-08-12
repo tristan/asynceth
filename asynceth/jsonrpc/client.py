@@ -6,6 +6,7 @@ import time
 
 from asynceth.jsonrpc.errors import JsonRPCError, HTTPError
 from asynceth.utils import parse_int, validate_hex_int, validate_block_param
+from asynceth.jsonrpc.middleware import Middleware
 
 logging.basicConfig()
 JSONRPC_LOG = logging.getLogger("asynceth.jsonrpc.client")
@@ -39,6 +40,12 @@ class JsonRPCClient:
     def __init__(self, url, *, should_retry=True, log=None,
                  max_clients=500, bulk_mode=False, connect_timeout=5.0, request_timeout=30.0,
                  client_cls=None, **kwargs):
+
+        if 'middleware' in kwargs:
+            self.middleware = kwargs.pop('middleware')
+        else:
+            self.middleware = Middleware()
+
         self._url = url
         self._max_clients = max_clients
         self._request_timeout = request_timeout
@@ -97,6 +104,12 @@ class JsonRPCClient:
         # which means something probably needs to be fixed
         req_start = time.time()
         retries = 0
+        for fn in self.middleware.before_request:
+            res = fn(data)
+            if asyncio.iscoroutine(res):
+                res = await res
+            if res is not None:
+                data = res
         while True:
             try:
                 resp = await self._httpclient.fetch(
@@ -124,6 +137,13 @@ class JsonRPCClient:
                 continue
 
             rval = await resp.json(content_type=None)
+
+            for fn in self.middleware.after_request:
+                res = fn(data, rval)
+                if asyncio.iscoroutine(res):
+                    res = await res
+                if res is not None:
+                    rval = res
 
             # verify the id we got back is the same as what we passed
             if data['id'] != rval['id']:
@@ -365,7 +385,9 @@ class JsonRPCClient:
                              max_clients=self._max_clients, bulk_mode=True,
                              request_timeout=self._request_timeout,
                              connect_timeout=self._connect_timeout,
-                             client_cls=self._client_cls, **self._client_kwargs)
+                             client_cls=self._client_cls,
+                             middleware=self.middleware,
+                             **self._client_kwargs)
 
     async def execute(self):
         if not self._bulk_mode:
@@ -378,6 +400,13 @@ class JsonRPCClient:
         futures = self._bulk_futures.copy()
         self._bulk_futures = {}
         req_start = time.time()
+
+        for fn in self.middleware.before_request:
+            res = fn(data)
+            if asyncio.iscoroutine(res):
+                res = await res
+            if res is not None:
+                data = res
 
         retries = 0
         while True:
@@ -408,6 +437,12 @@ class JsonRPCClient:
             break
 
         rvals = await resp.json()
+        for fn in self.middleware.after_request:
+            res = fn(data, rvals)
+            if asyncio.iscoroutine(res):
+                res = await res
+            if res is not None:
+                rvals = res
 
         results = []
         for rval in rvals:

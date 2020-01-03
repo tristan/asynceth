@@ -53,11 +53,14 @@ class ContractTranslator(ethereum.abi.ContractTranslator):
                     decode_type = process_abi_type(element)
                     decode_types.append(decode_type)
 
+                # 1st is 0.6.0 way, 2nd is old
+                is_constant = description.get('stateMutability', '') == 'view' \
+                    or description.get('constant', False)
                 self.function_data[normalized_name] = {
                     'prefix': prefix,
                     'encode_types': encode_types,
                     'decode_types': decode_types,
-                    'is_constant': description.get('constant', False),
+                    'is_constant': is_constant,
                     'signature': signature,
                     'payable': description.get('payable', False),
                 }
@@ -250,13 +253,13 @@ class ContractMethod:
         tx_encoded = '0x' + encode_hex(rlp.encode(tx, Transaction))
 
         tx_hash = await self.jsonrpc.eth_sendRawTransaction(tx_encoded)
-        return TransactionResponse(self.jsonrpc, tx_hash)
+        return TransactionResponse(self.jsonrpc, tx_hash, nonce)
 
 class Contract:
 
-    def __init__(self, jsonrpc, abi, name=None, cwd=None, bytecode=None, address=None, solc='solc', optimize=True, optimize_runs=None):
+    def __init__(self, jsonrpc, abi, name=None, cwd=None, bytecode=None, address=None, solc='solc', optimize=True, optimize_runs=None, no_optimize_yul=False):
         if isinstance(abi, str):
-            abi, bytecode = compile_solidity(abi, cwd=cwd, name=name, solc=solc, optimize=optimize, optimize_runs=optimize_runs)
+            abi, bytecode = compile_solidity(abi, cwd=cwd, name=name, solc=solc, optimize=optimize, optimize_runs=optimize_runs, no_optimize_yul=no_optimize_yul)
         self.abi = abi
         self.bytecode = bytecode
         self.jsonrpc = jsonrpc

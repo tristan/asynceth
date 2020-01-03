@@ -36,9 +36,10 @@ class Transaction(ethereum.transactions.Transaction):
         return ret
 
 class TransactionResponse:
-    def __init__(self, jsonrpc, hash):
+    def __init__(self, jsonrpc, hash, nonce=None):
         self.jsonrpc = jsonrpc
         self.hash = hash
+        self.nonce = nonce
         self._receipt = None
 
     async def status(self):
